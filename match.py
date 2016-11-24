@@ -1,4 +1,3 @@
-import numpy
 from operator import itemgetter, attrgetter, methodcaller
 from point import Order, data
 
@@ -259,7 +258,7 @@ def match(withdraw_order, new_order):
     return ret
 
 
-match([], neworder)
+
 
     
 

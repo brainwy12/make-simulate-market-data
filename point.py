@@ -26,15 +26,14 @@ class price_change:
         self.tick = tick
         self.dur_tick = dur_tick
         self.change_per = change_per
-
     def lower_bound(self):
         if self.tick < self.update_tick:
             start_tick = 0
             end_tick = self.tick
         else :
-            tem = int(tick/update_tick)
-            start_tick = (tem-1)*update_tick
-            end_tick = tem*update_tick
+            tem = int(self.tick/self.update_tick)
+            start_tick = (tem-1)*self.update_tick
+            end_tick = tem*self.update_tick
         change_list = []
         for i in range(start_tick,end_tick-self.dur_tick):
             price_change = (sim_data[i].Askprice1+sim_data[i].Bidprice1)/2 - (sim_data[i+self.dur_tick].Askprice1+sim_data[i+self.dur_tick].Bidprice1)/2
@@ -109,8 +108,8 @@ class trader_class_1:
         flag = random.random()
         prob = 0
         lastprob = 0
-        for i in range(0,max(int(self.num*self.probility*20),4)):
-            prob += erxiangfenbu(self.num,i,self.probility)
+        for i in range(0,max(int(self.num*self.trade_probility*20),4)):
+            prob += erxiangfenbu(self.num,i,self.trade_probility)
             if lastprob < flag and prob > flag :
                 if abs(lastprob - flag) > abs(prob-flag):
                     lastprob = prob
@@ -162,7 +161,7 @@ class trader_class_1_2:
         else :
             return False
 
-    def get_price(self):
+    def get_price(self,tick):
         tem = random.random()
         temp = random.random()
         if tem < self.ask_prob:
@@ -210,7 +209,10 @@ class trader_class_1_2:
         
         InstrumentID = sim_data[tick].InstrumentID
         identifycode = get_identifycode()
-        waitorder = Order(self.volume,self.price,tick,InstrumentID,identifycode,self.position)
+        if self.in_position*self.position == -1:
+            waitorder = Order(min(self.volume,self.in_volume),self.price,tick,InstrumentID,identifycode,self.position)
+        else:
+            waitorder = Order(self.volume,self.price,tick,InstrumentID,identifycode,self.position)
         self.wait_volume = self.volume
         self.wait_position = self.position
         return waitorder
@@ -218,6 +220,8 @@ class trader_class_1_2:
 
     def receive_order(self,trade_order):
         self.wait_volume -= trade_order.volume
+        if self.wait_volume == 0:
+            self.wait_position = 0
         if self.in_volume == 0 or self.in_position * self.wait_position == 1:
             self.in_price = (self.in_price*self.in_volume + trade_order.price * trade_order.volume)/(self.in_volume+trade_order.volume)
             self.in_volume += trade_order.volume
@@ -233,7 +237,7 @@ class trader_class_1_2:
         return False
         #true to release , false there are some order to trade
 
-class trade_class_2:
+class trader_class_2:
     volume = 0
     price = 0
     observe_tick = 0
@@ -262,15 +266,15 @@ class trade_class_2:
         self.zhisun_per = random.uniform(zhisun_low,zhisun_high)
 
     def update_change(self,tick):
-        if tick > update_tick:
+        if tick > self.update_tick:
             change_bound = price_change(tick,self.observe_tick,self.change_per)
-            open_bound = change_bound.lower_bound()
-            update_tick += 50000
+            self.open_bound = change_bound.lower_bound()
+            self.update_tick += 50000
 
     def open_judge(self,tick):
-        update_change(self,tick)
+        #update_change(self,tick)
         tem = (sim_data[tick].Askprice1+sim_data[tick].Bidprice1)/2-(sim_data[tick-self.observe_tick].Askprice1+sim_data[tick-self.observe_tick].Bidprice1)/2
-        if abs(tem) > open_bound:
+        if abs(tem) > self.open_bound:
             if tem*trend_overturn > 0: #buy
                 self.position = 1
                 self.price = sim_data[tick].Askprice1
@@ -282,7 +286,7 @@ class trade_class_2:
             return False
 
     def close_judge(self,tick):
-        if (((sim_data[tick].Askprice1+sim_data.Bidprice1)/2 - open_price)/open_price > self.zhiying_per and position == 1) :
+        if (self.in_position == 1 and ((sim_data[tick].Askprice1+sim_data[tick].Bidprice1)/2 - self.in_price)/self.in_price > self.zhiying_per ) :
             temp = random.random()
             self.position = - 1
             if temp < self.zhiying_prob: #duishoujia
@@ -290,7 +294,7 @@ class trade_class_2:
             else:
                 self.price = sim_data[tick].Askprice1
             return True
-        elif ((open_price-(sim_data[tick].Askprice1+sim_data[tick].Bidprice1)/2)/open_price > self.zhiying_per and position == -1):
+        elif (self.in_position == -1 and (self.in_price-(sim_data[tick].Askprice1+sim_data[tick].Bidprice1)/2)/self.in_price > self.zhiying_per):
             temp = random.random()
             self.position = 1
             if temp < self.zhiying_prob:
@@ -298,11 +302,11 @@ class trade_class_2:
             else:
                 self.price = sim_data[tick].Bidprice1
             return True
-        elif ((sim_data[tick].Askprice1+sim_data[tick].Bidprice1)/2 - open_price)/open_price > self.zhisun_per and position == -1 :
+        elif self.in_position == -1 and ((sim_data[tick].Askprice1+sim_data[tick].Bidprice1)/2 - self.in_price)/self.in_price > self.zhisun_per   :
             self.position = 1
             self.price = sim_data[tick].Askprice1
             return True
-        elif (open_price - (sim_data[tick].Askprice1+sim_data[tick].Bidprice1)/2)/open_price > self.zhisun_per and position == 1:
+        elif self.in_position == 1 and (self.in_price - (sim_data[tick].Askprice1+sim_data[tick].Bidprice1)/2)/self.in_price > self.zhisun_per  :
             self.position = -1
             self.price = sim_data[tick].Bidprice1
             return True
@@ -312,13 +316,18 @@ class trade_class_2:
     def send_order(self,tick):
         InstrumentID = sim_data[tick].InstrumentID
         identifycode = get_identifycode()
-        waitorder = Order(self.volume,self.price,tick,InstrumentID,identifycode,self.position)
+        if self.in_position*self.position == -1:
+            waitorder = Order(min(self.volume,self.in_volume),self.price,tick,InstrumentID,identifycode,self.position)
+        else:
+            waitorder = Order(self.volume,self.price,tick,InstrumentID,identifycode,self.position)
         self.wait_volume = self.volume
         self.wait_position = self.position
         return waitorder
 
     def receive_order(self,trade_order):
         self.wait_volume -= trade_order.volume
+        if self.wait_volume == 0:
+            self.wait_position = 0
         if self.in_volume == 0 or self.in_position * self.wait_position == 1:
             self.in_price = (self.in_price*self.in_volume + trade_order.price * trade_order.volume)/(self.in_volume+trade_order.volume)
             self.in_volume += trade_order.volume
@@ -333,7 +342,7 @@ class trade_class_2:
             return True
         return False
 
-class trade_class_3:
+class trader_class_3:
     volume = 0
     price = 0
     trade_probility = 0
@@ -397,7 +406,7 @@ class trade_class_3:
             return False
 
     def change_state(self,tick):
-        if self.state == -2 and self.close_tick == tick:
+        if self.state == -2 and self.close_tick <= tick:
             self.state = -1
         elif self.state == -1 and self.in_volume == 0:
             self.state = 0
@@ -408,13 +417,18 @@ class trade_class_3:
     def send_order(self,tick):
         InstrumentID = sim_data[tick].InstrumentID
         identifycode = get_identifycode()
-        waitorder = Order(self.volume,self.price,tick,InstrumentID,identifycode,self.position)
+        if self.in_position*self.position == -1:
+            waitorder = Order(min(self.volume,self.in_volume),self.price,tick,InstrumentID,identifycode,self.position)
+        else:
+            waitorder = Order(self.volume,self.price,tick,InstrumentID,identifycode,self.position)
         self.wait_volume = self.volume
         self.wait_position = self.position
         return waitorder
 
     def receive_order(self):
         self.wait_volume -= trade_order.volume
+        if self.wait_volume == 0:
+            self.wait_position = 0
         if self.in_volume == 0 or self.in_position * self.wait_position == 1:
             self.in_price = (self.in_price*self.in_volume + trade_order.price * trade_order.volume)/(self.in_volume+trade_order.volume)
             self.in_volume += trade_order.volume
@@ -429,7 +443,7 @@ class trade_class_3:
             return True
         return False
 
-class trade_class_4:
+class trader_class_4:
     volume = 0
     volume_per = 0
     price = 0
@@ -455,7 +469,7 @@ class trade_class_4:
 
     def get_volume(self,tick):
         start_tick = tick - self.observe_tick
-        avg_volume = (sim_data[tick].volume - sim_data[start_tick].volume)/self.observe_tick 
+        avg_volume = (sim_data[tick].Volume - sim_data[start_tick].Volume)/self.observe_tick 
         self.volume = int(avg_volume*self.volume_per)
 
 
@@ -495,13 +509,18 @@ class trade_class_4:
     def send_order(self,tick):
         InstrumentID = sim_data[tick].InstrumentID
         identifycode = get_identifycode()
-        waitorder = Order(self.volume,self.price,tick,InstrumentID,identifycode,self.position)
+        if self.in_position*self.position == -1:
+            waitorder = Order(min(self.volume,self.in_volume),self.price,tick,InstrumentID,identifycode,self.position)
+        else:
+            waitorder = Order(self.volume,self.price,tick,InstrumentID,identifycode,self.position)
         self.wait_volume = self.volume
         self.wait_position = self.position
         return waitorder
 
     def receive_order(self):
         self.wait_volume -= trade_order.volume
+        if self.wait_volume == 0:
+            self.wait_position = 0
         if self.in_volume == 0 or self.in_position * self.wait_position == 1:
             self.in_price = (self.in_price*self.in_volume + trade_order.price * trade_order.volume)/(self.in_volume+trade_order.volume)
             self.in_volume += trade_order.volume
@@ -516,7 +535,7 @@ class trade_class_4:
             return True
         return False
 
-class trade_class_5:
+class trader_class_5:
     volume_per = 0
     volume = 0
     price = 0
@@ -526,14 +545,14 @@ class trade_class_5:
     in_volume = 0
     in_position = 0
     in_price = 0
-
+    observe_tick = 50000
     def __init__(self,trade_probility=0.02):
         self.volume_per = random.uniform(0.01,0.02)
         self.trade_probility = trade_probility
 
     def get_volume(self,tick):
         start_tick = tick - self.observe_tick
-        avg_volume = (sim_data[tick].volume - sim_data[start_tick].volume)/self.observe_tick 
+        avg_volume = (sim_data[tick].Volume - sim_data[start_tick].Volume)/self.observe_tick 
         self.volume = int(avg_volume*self.volume_per)
 
     def open_judge(self,tick):
@@ -551,13 +570,18 @@ class trade_class_5:
     def send_order(self,tick):
         InstrumentID = sim_data[tick].InstrumentID
         identifycode = get_identifycode()
-        waitorder = Order(self.volume,self.price,tick,InstrumentID,identifycode,self.position)
+        if self.in_position*self.position == -1:
+            waitorder = Order(min(self.volume,self.in_volume),self.price,tick,InstrumentID,identifycode,self.position)
+        else:
+            waitorder = Order(self.volume,self.price,tick,InstrumentID,identifycode,self.position)
         self.wait_volume = self.volume
         self.wait_position = self.position
         return waitorder
 
     def receive_order(self):
         self.wait_volume -= trade_order.volume
+        if self.wait_volume == 0:
+            self.wait_position = 0
         if self.in_volume == 0 or self.in_position * self.wait_position == 1:
             self.in_price = (self.in_price*self.in_volume + trade_order.price * trade_order.volume)/(self.in_volume+trade_order.volume)
             self.in_volume += trade_order.volume
